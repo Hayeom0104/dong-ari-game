@@ -10,18 +10,20 @@ namespace DongAriGame.Gameplay
         private readonly AffinityProgress affinities = new AffinityProgress();
         private readonly RunProgress run = new RunProgress();
         private readonly HashSet<Health> livingEnemies = new HashSet<Health>();
+        private readonly Dictionary<Health, int> enemyScores = new Dictionary<Health, int>();
         private CharacterClass selectedClass;
         private GamePhase phase = GamePhase.CharacterSelect;
         private PlayerController2D playerController;
         private PlayerCombat playerCombat;
         private Health playerHealth;
         private float elapsedTime;
-        private AffinityType firstChoice;
-        private AffinityType secondChoice;
+        private readonly AffinityType[] artifactChoices = new AffinityType[3];
+        private int score;
 
         public GamePhase Phase => phase;
         public int CurrentRoom => run.CurrentRoom;
         public float ElapsedTime => elapsedTime;
+        public int Score => score;
 
         private void Awake()
         {
@@ -42,7 +44,9 @@ namespace DongAriGame.Gameplay
 
         private void Update()
         {
-            if (phase == GamePhase.Playing) elapsedTime += Time.deltaTime;
+            if (phase != GamePhase.Playing) return;
+            elapsedTime += Time.deltaTime;
+            if (Input.GetKeyDown(KeyCode.Q)) TryUseCharacterSkill();
         }
 
         private void StartRun(CharacterClass characterClass)
@@ -52,6 +56,7 @@ namespace DongAriGame.Gameplay
             run.Reset();
             affinities.Reset();
             elapsedTime = 0f;
+            score = 0;
             transform.position = Vector3.zero;
             ApplyStats(true);
             playerCombat.ResetMana();
@@ -65,9 +70,9 @@ namespace DongAriGame.Gameplay
         {
             StatBlock stats = selectedClass switch
             {
-                CharacterClass.Warrior => new StatBlock { MaxHealth = 140f, AttackPower = 16f, MoveSpeed = 4.5f, AttackSpeed = 0.9f },
-                CharacterClass.Archer => new StatBlock { MaxHealth = 100f, AttackPower = 12f, MoveSpeed = 5.8f, AttackSpeed = 1.35f, CriticalChance = 0.1f },
-                CharacterClass.Mage => new StatBlock { MaxHealth = 85f, AttackPower = 21f, MoveSpeed = 5f, AttackSpeed = 0.8f },
+                CharacterClass.Warrior => new StatBlock { MaxHealth = 150f, AttackPower = 10f, MoveSpeed = 4.5f, AttackSpeed = 0.9f },
+                CharacterClass.Archer => new StatBlock { MaxHealth = 100f, AttackPower = 10f, MoveSpeed = 5.8f, AttackSpeed = 1.35f, CriticalChance = 0.1f },
+                CharacterClass.Mage => new StatBlock { MaxHealth = 70f, AttackPower = 10f, MoveSpeed = 5f, AttackSpeed = 0.8f },
                 _ => new StatBlock()
             };
             return affinities.ApplyTo(stats);
@@ -86,6 +91,7 @@ namespace DongAriGame.Gameplay
 
             playerController.SetMoveSpeed(stats.MoveSpeed);
             playerHealth.SetEvasion(stats.EvasionChance);
+            playerCombat.ConfigureMana(GetMaximumMana());
             float range = selectedClass == CharacterClass.Archer ? 2.8f : selectedClass == CharacterClass.Mage ? 2.2f : 1.35f;
             playerCombat.Configure(stats.AttackPower, stats.AttackSpeed, stats.CriticalChance, range);
         }
@@ -99,34 +105,43 @@ namespace DongAriGame.Gameplay
             {
                 float angle = Mathf.PI * 2f * i / enemyCount;
                 Vector2 position = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * 5.3f;
-                Health enemy = CreateEnemy(position, bossRoom);
+                bool elite = !bossRoom && i == enemyCount - 1;
+                Health enemy = CreateEnemy(position, bossRoom, elite);
                 livingEnemies.Add(enemy);
                 enemy.Died += HandleEnemyDied;
             }
         }
 
-        private Health CreateEnemy(Vector2 position, bool boss)
+        private Health CreateEnemy(Vector2 position, bool boss, bool elite)
         {
-            var enemy = new GameObject(boss ? "Room Boss" : "Enemy");
+            var enemy = new GameObject(boss ? "Room Boss" : elite ? "Elite Enemy" : "Enemy");
             enemy.transform.position = position;
-            enemy.transform.localScale = boss ? Vector3.one * 1.8f : Vector3.one;
+            enemy.transform.localScale = boss ? Vector3.one * 1.8f : elite ? Vector3.one * 1.3f : Vector3.one;
             enemy.AddComponent<SpriteRenderer>();
             var visual = enemy.AddComponent<SolidColorVisual>();
-            visual.SetColor(boss ? new Color(0.75f, 0.2f, 0.95f) : new Color(0.92f, 0.22f, 0.2f));
+            visual.SetColor(boss ? new Color(0.75f, 0.2f, 0.95f) : elite ? new Color(1f, 0.65f, 0.12f) : new Color(0.92f, 0.22f, 0.2f));
             enemy.AddComponent<BoxCollider2D>();
             var rigidbody = enemy.AddComponent<Rigidbody2D>();
             rigidbody.gravityScale = 0f;
             rigidbody.freezeRotation = true;
             Health enemyHealth = enemy.AddComponent<Health>();
-            enemyHealth.Configure(boss ? 450f : 28f + run.CurrentRoom * 9f, CombatFaction.Enemy);
+            float hp = boss ? 200f + run.CurrentRoom * 50f : 30f + run.CurrentRoom * 10f;
+            if (elite) hp *= 2f;
+            enemyHealth.Configure(hp, CombatFaction.Enemy);
+            var reward = enemy.AddComponent<EnemyReward>();
+            reward.Configure(boss ? 1000 : elite ? 250 : 100, elite);
+            enemyScores[enemyHealth] = reward.ScoreValue;
             var chaser = enemy.AddComponent<EnemyChaser>();
-            chaser.Configure(transform, playerHealth, boss ? 1.4f : 1.8f + run.CurrentRoom * 0.04f,
-                boss ? 18f : 5f + run.CurrentRoom * 1.2f, boss ? 1.1f : 1.35f);
+            float damage = boss ? 20f + run.CurrentRoom * 5f : 5f + run.CurrentRoom * 2f;
+            chaser.Configure(transform, playerHealth, boss ? 1.4f : elite ? 2.2f : 1.8f,
+                elite ? damage * 1.5f : damage, boss ? 1.1f : 1.35f);
             return enemyHealth;
         }
 
         private void HandleEnemyDied()
         {
+            foreach (Health enemy in livingEnemies)
+                if (enemy != null && enemy.IsDead && enemyScores.Remove(enemy, out int earned)) score += earned;
             livingEnemies.RemoveWhere(enemy => enemy == null || enemy.IsDead);
             if (livingEnemies.Count > 0 || phase != GamePhase.Playing) return;
 
@@ -137,8 +152,9 @@ namespace DongAriGame.Gameplay
                 return;
             }
 
-            firstChoice = (AffinityType)((run.CurrentRoom - 1) % 3);
-            secondChoice = (AffinityType)(((int)firstChoice + 1 + Random.Range(0, 2)) % 3);
+            artifactChoices[0] = AffinityType.Red;
+            artifactChoices[1] = AffinityType.Blue;
+            artifactChoices[2] = AffinityType.White;
             phase = GamePhase.ArtifactSelect;
             playerController.SetInputEnabled(false);
             playerCombat.SetInputEnabled(false);
@@ -175,6 +191,7 @@ namespace DongAriGame.Gameplay
                 Destroy(enemy.gameObject);
             }
             livingEnemies.Clear();
+            enemyScores.Clear();
         }
 
         private void UnsubscribeEnemies()
@@ -201,7 +218,8 @@ namespace DongAriGame.Gameplay
             GUI.Label(new Rect(36, 28, 320, 28), $"방 {run.CurrentRoom} / {RunProgress.TotalRooms}   경과 {FormatTime(elapsedTime)}");
             GUI.Label(new Rect(36, 59, 320, 25), $"체력 {playerHealth.Current:0} / {playerHealth.Maximum:0}");
             GUI.Label(new Rect(36, 88, 320, 25), $"마나 {playerCombat.Mana.Current:0.0} / {playerCombat.Mana.Maximum:0} (+1/초)");
-            GUI.Label(new Rect(20, 665, 500, 30), "이동: WASD/방향키    공격: Space");
+            GUI.Label(new Rect(390, 18, 260, 28), $"점수 {score:N0}");
+            GUI.Label(new Rect(20, 665, 650, 30), $"이동: WASD/방향키    기본 공격: Space    고유 스킬: Q (마나 20)");
         }
 
         private void DrawCharacterSelect()
@@ -217,8 +235,9 @@ namespace DongAriGame.Gameplay
         {
             GUI.Box(new Rect(365, 160, 550, 360), $"{run.CurrentRoom}번 방 클리어!");
             GUI.Label(new Rect(470, 215, 360, 35), "아티팩트를 하나 선택하세요.");
-            if (GUI.Button(new Rect(420, 280, 440, 70), ArtifactText(firstChoice))) SelectArtifact(firstChoice);
-            if (GUI.Button(new Rect(420, 375, 440, 70), ArtifactText(secondChoice))) SelectArtifact(secondChoice);
+            if (GUI.Button(new Rect(420, 270, 440, 60), ArtifactText(artifactChoices[0]))) SelectArtifact(artifactChoices[0]);
+            if (GUI.Button(new Rect(420, 345, 440, 60), ArtifactText(artifactChoices[1]))) SelectArtifact(artifactChoices[1]);
+            if (GUI.Button(new Rect(420, 420, 440, 60), ArtifactText(artifactChoices[2]))) SelectArtifact(artifactChoices[2]);
         }
 
         private void DrawResult()
@@ -226,7 +245,7 @@ namespace DongAriGame.Gameplay
             string title = phase == GamePhase.Victory ? "던전 정복 성공!" : "도전 종료";
             string reason = phase == GamePhase.Victory ? "10개의 방을 모두 돌파했습니다." : "체력이 모두 소진되었습니다.";
             GUI.Box(new Rect(390, 190, 500, 320), title);
-            GUI.Label(new Rect(470, 270, 350, 60), $"{reason}\n기록: {FormatTime(elapsedTime)}");
+            GUI.Label(new Rect(470, 270, 350, 60), $"{reason}\n기록: {FormatTime(elapsedTime)}\n점수: {score:N0}");
             if (GUI.Button(new Rect(490, 380, 300, 65), "캐릭터 선택으로")) phase = GamePhase.CharacterSelect;
         }
 
@@ -244,6 +263,36 @@ namespace DongAriGame.Gameplay
         {
             int total = Mathf.FloorToInt(seconds);
             return $"{total / 60:00}:{total % 60:00}";
+        }
+
+        private float GetMaximumMana()
+        {
+            return selectedClass switch
+            {
+                CharacterClass.Warrior => 50f,
+                CharacterClass.Archer => 80f,
+                CharacterClass.Mage => 120f,
+                _ => 50f
+            };
+        }
+
+        private void TryUseCharacterSkill()
+        {
+            float range = selectedClass switch
+            {
+                CharacterClass.Warrior => 2.6f,
+                CharacterClass.Archer => 4.2f,
+                CharacterClass.Mage => 5.2f,
+                _ => 2f
+            };
+            float multiplier = selectedClass switch
+            {
+                CharacterClass.Warrior => 2.2f,
+                CharacterClass.Archer => 1.6f,
+                CharacterClass.Mage => 2.8f,
+                _ => 1f
+            };
+            playerCombat.TryUseSkill(20f, multiplier, range);
         }
     }
 }
