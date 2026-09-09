@@ -47,5 +47,13 @@ namespace DongAriGame.Tests
             Assert.That(mana.TrySpend(3f), Is.False);
             Assert.That(mana.Current, Is.EqualTo(2f));
         }
+
+        [Test]
+        public void ManaIsCappedAtItsMaximum()
+        {
+            var mana = new ManaPool(50f, 1f, 49.5f);
+            mana.Tick(10f);
+            Assert.That(mana.Current, Is.EqualTo(50f));
+        }
     }
 }
