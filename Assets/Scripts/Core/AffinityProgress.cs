@@ -9,6 +9,13 @@ namespace DongAriGame.Core
         public int Blue;
         public int White;
 
+        public void Reset()
+        {
+            Red = 0;
+            Blue = 0;
+            White = 0;
+        }
+
         public void Add(AffinityType type, int amount = 1)
         {
             if (amount < 0) throw new ArgumentOutOfRangeException(nameof(amount));
@@ -38,4 +45,3 @@ namespace DongAriGame.Core
         }
     }
 }
-

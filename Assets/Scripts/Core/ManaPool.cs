@@ -30,6 +30,10 @@ namespace DongAriGame.Core
             Current -= amount;
             return true;
         }
+
+        public void Fill()
+        {
+            Current = Maximum;
+        }
     }
 }
-

@@ -16,7 +16,7 @@ namespace DongAriGame.Editor
             EditorApplication.delayCall += EnsureStarterScene;
         }
 
-        [MenuItem("Dong Ari Game/Rebuild Starter Scene")]
+        [MenuItem("Dong Ari Game/Create Starter Scene")]
         public static void EnsureStarterScene()
         {
             if (AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath) != null) return;
@@ -31,14 +31,6 @@ namespace DongAriGame.Editor
             player.AddComponent<PlayerCombat>();
             player.AddComponent<GameSession>();
 
-            for (int i = 0; i < 4; i++)
-            {
-                GameObject enemy = CreateActor($"Enemy_{i + 1}", new Color(0.9f, 0.25f, 0.25f),
-                    new Vector2(Mathf.Cos(i * Mathf.PI * 0.5f), Mathf.Sin(i * Mathf.PI * 0.5f)) * 5f);
-                enemy.GetComponent<Health>().Configure(30f);
-                enemy.AddComponent<EnemyChaser>().SetTarget(player.transform);
-            }
-
             EditorSceneManager.SaveScene(scene, ScenePath);
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
             AssetDatabase.SaveAssets();
@@ -49,12 +41,13 @@ namespace DongAriGame.Editor
         {
             var actor = new GameObject(name);
             actor.transform.position = position;
-            var renderer = actor.AddComponent<SpriteRenderer>();
-            renderer.sprite = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/UISprite.psd");
-            renderer.color = color;
+            actor.AddComponent<SpriteRenderer>();
+            var visual = actor.AddComponent<SolidColorVisual>();
+            visual.SetColor(color);
             actor.AddComponent<BoxCollider2D>();
             actor.AddComponent<Rigidbody2D>();
-            actor.AddComponent<Health>();
+            Health health = actor.AddComponent<Health>();
+            if (name == "Player") health.Configure(100f, CombatFaction.Player);
             return actor;
         }
 
@@ -71,4 +64,3 @@ namespace DongAriGame.Editor
     }
 }
 #endif
-

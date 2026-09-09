@@ -10,6 +10,12 @@ namespace DongAriGame.Gameplay
         private Vector2 movement;
         public Vector2 Facing { get; private set; } = Vector2.right;
 
+        public void SetInputEnabled(bool value)
+        {
+            enabled = value;
+            if (!value) movement = Vector2.zero;
+        }
+
         private void Awake()
         {
             body = GetComponent<Rigidbody2D>();
@@ -34,4 +40,3 @@ namespace DongAriGame.Gameplay
         }
     }
 }
-

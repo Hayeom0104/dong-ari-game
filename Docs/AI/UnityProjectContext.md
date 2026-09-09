@@ -10,7 +10,7 @@
 - Startup: `Assets/Editor/ProjectSetup.cs` generates `Assets/Scenes/Main.unity` on first import and adds it to Build Settings
 - Tests: Unity Test Framework with EditMode tests under `Assets/Tests/EditMode`
 - MCP: No Unity Editor MCP package or client configuration detected
-- Current scope: Movement, basic melee attack, mana regeneration, health, enemy chase, three character presets, three affinities, ten-room progress
+- Current scope: Complete prototype loop with character selection, stat application, movement, attacks, enemy damage, mana regeneration, artifacts, HUD, elapsed timer, ten rooms, final boss, and results
 - Validation: Static inspection only; Unity Editor is unavailable in this workspace
 - Important unknowns: final art direction, exact class skills, room layouts, artifact roster, balance targets, target platform
 
