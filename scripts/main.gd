@@ -55,7 +55,8 @@ func _ready() -> void:
 func build_ui() -> void:
 	var bg := ColorRect.new()
 	bg.color = Color("11172a")
-	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bg.position = Vector2.ZERO
+	bg.size = Vector2(1280, 720)
 	add_child(bg)
 
 	var root := VBoxContainer.new()
@@ -313,4 +314,3 @@ func finish_run(victory: bool, reason := "") -> void:
 func reset_game() -> void:
 	title_label.text = "동아리 던전"
 	show_hero_select()
-
