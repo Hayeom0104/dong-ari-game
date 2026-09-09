@@ -101,7 +101,7 @@ namespace DongAriGame.Gameplay
         private void BeginRoom()
         {
             currentWave = 1;
-            wavesInRoom = run.CurrentRoom == RunProgress.TotalRooms ? 1 : 2 + (run.CurrentRoom - 1) / 3;
+            wavesInRoom = run.CurrentRoom == RunProgress.TotalRooms ? 1 : 1 + (run.CurrentRoom - 1) / 4;
             SpawnWave();
         }
 
@@ -109,7 +109,7 @@ namespace DongAriGame.Gameplay
         {
             ClearEnemies();
             bool bossRoom = run.CurrentRoom == RunProgress.TotalRooms;
-            int enemyCount = bossRoom ? 1 : Mathf.Min(3 + run.CurrentRoom + currentWave, 9);
+            int enemyCount = bossRoom ? 1 : Mathf.Min(2 + run.CurrentRoom / 2 + currentWave, 6);
             for (int i = 0; i < enemyCount; i++)
             {
                 float angle = Mathf.PI * 2f * i / enemyCount;
