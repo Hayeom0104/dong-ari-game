@@ -19,6 +19,8 @@ namespace DongAriGame.Gameplay
         private float elapsedTime;
         private readonly AffinityType[] artifactChoices = new AffinityType[3];
         private int score;
+        private int currentWave;
+        private int wavesInRoom;
 
         public GamePhase Phase => phase;
         public int CurrentRoom => run.CurrentRoom;
@@ -63,7 +65,7 @@ namespace DongAriGame.Gameplay
             phase = GamePhase.Playing;
             playerController.SetInputEnabled(true);
             playerCombat.SetInputEnabled(true);
-            SpawnRoom();
+            BeginRoom();
         }
 
         private StatBlock BuildCurrentStats()
@@ -96,16 +98,23 @@ namespace DongAriGame.Gameplay
             playerCombat.Configure(stats.AttackPower, stats.AttackSpeed, stats.CriticalChance, range);
         }
 
-        private void SpawnRoom()
+        private void BeginRoom()
+        {
+            currentWave = 1;
+            wavesInRoom = run.CurrentRoom == RunProgress.TotalRooms ? 1 : 2 + (run.CurrentRoom - 1) / 3;
+            SpawnWave();
+        }
+
+        private void SpawnWave()
         {
             ClearEnemies();
             bool bossRoom = run.CurrentRoom == RunProgress.TotalRooms;
-            int enemyCount = bossRoom ? 1 : 2 + run.CurrentRoom / 2;
+            int enemyCount = bossRoom ? 1 : Mathf.Min(3 + run.CurrentRoom + currentWave, 9);
             for (int i = 0; i < enemyCount; i++)
             {
                 float angle = Mathf.PI * 2f * i / enemyCount;
                 Vector2 position = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * 5.3f;
-                bool elite = !bossRoom && i == enemyCount - 1;
+                bool elite = !bossRoom && currentWave == wavesInRoom && i == enemyCount - 1;
                 Health enemy = CreateEnemy(position, bossRoom, elite);
                 livingEnemies.Add(enemy);
                 enemy.Died += HandleEnemyDied;
@@ -145,6 +154,13 @@ namespace DongAriGame.Gameplay
             livingEnemies.RemoveWhere(enemy => enemy == null || enemy.IsDead);
             if (livingEnemies.Count > 0 || phase != GamePhase.Playing) return;
 
+            if (currentWave < wavesInRoom)
+            {
+                currentWave++;
+                SpawnWave();
+                return;
+            }
+
             if (run.CurrentRoom == RunProgress.TotalRooms)
             {
                 run.CompleteCurrentRoom();
@@ -169,7 +185,7 @@ namespace DongAriGame.Gameplay
             phase = GamePhase.Playing;
             playerController.SetInputEnabled(true);
             playerCombat.SetInputEnabled(true);
-            SpawnRoom();
+            BeginRoom();
         }
 
         private void HandlePlayerDied() => EndRun(false);
@@ -215,10 +231,10 @@ namespace DongAriGame.Gameplay
         private void DrawHud()
         {
             GUI.Box(new Rect(20, 18, 350, 118), string.Empty);
-            GUI.Label(new Rect(36, 28, 320, 28), $"방 {run.CurrentRoom} / {RunProgress.TotalRooms}   경과 {FormatTime(elapsedTime)}");
+            GUI.Label(new Rect(36, 28, 320, 28), $"방 {run.CurrentRoom} / {RunProgress.TotalRooms}   웨이브 {currentWave}/{wavesInRoom}");
             GUI.Label(new Rect(36, 59, 320, 25), $"체력 {playerHealth.Current:0} / {playerHealth.Maximum:0}");
             GUI.Label(new Rect(36, 88, 320, 25), $"마나 {playerCombat.Mana.Current:0.0} / {playerCombat.Mana.Maximum:0} (+1/초)");
-            GUI.Label(new Rect(390, 18, 260, 28), $"점수 {score:N0}");
+            GUI.Label(new Rect(390, 18, 320, 28), $"경과 {FormatTime(elapsedTime)}   점수 {score:N0}");
             GUI.Label(new Rect(20, 665, 650, 30), $"이동: WASD/방향키    기본 공격: Space    고유 스킬: Q (마나 20)");
         }
 
