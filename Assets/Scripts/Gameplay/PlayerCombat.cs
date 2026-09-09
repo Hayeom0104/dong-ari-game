@@ -39,7 +39,11 @@ namespace DongAriGame.Gameplay
 
         public void SetInputEnabled(bool value) => enabled = value;
 
-        public void ResetMana() => mana.Fill();
+        public void ResetMana()
+        {
+            mana.Fill();
+            nextAttackTime = 0f;
+        }
 
         public void ConfigureMana(float maximum)
         {
@@ -49,7 +53,7 @@ namespace DongAriGame.Gameplay
 
         public bool TryAttack()
         {
-            if (Time.time < nextAttackTime) return false;
+            if (!isActiveAndEnabled || Time.time < nextAttackTime) return false;
             nextAttackTime = Time.time + attackInterval;
             DealDamageInRange(attackRange, attackPower);
             return true;
@@ -57,7 +61,7 @@ namespace DongAriGame.Gameplay
 
         public bool TryUseSkill(float manaCost, float damageMultiplier, float range)
         {
-            if (Time.time < nextAttackTime || !mana.TrySpend(manaCost)) return false;
+            if (!isActiveAndEnabled || Time.time < nextAttackTime || !mana.TrySpend(manaCost)) return false;
             nextAttackTime = Time.time + attackInterval;
             DealDamageInRange(range, attackPower * Mathf.Max(0f, damageMultiplier));
             return true;
