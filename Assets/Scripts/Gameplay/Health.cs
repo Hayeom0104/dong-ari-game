@@ -32,7 +32,7 @@ namespace DongAriGame.Gameplay
         public bool TryDamage(float amount, bool canEvade = true)
         {
             if (IsDead || amount <= 0f) return false;
-            if (canEvade && Random.value < evasionChance) return false;
+            if (canEvade && UnityEngine.Random.value < evasionChance) return false;
             Current = Mathf.Max(0f, Current - amount);
             Changed?.Invoke(Current, maximum);
             if (IsDead) Died?.Invoke();
