@@ -6,6 +6,7 @@ namespace DongAriGame.Core
         Playing,
         ArtifactSelect,
         Victory,
-        Defeat
+        Defeat,
+        Shop
     }
 }
