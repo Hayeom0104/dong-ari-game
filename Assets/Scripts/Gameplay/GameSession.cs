@@ -100,6 +100,17 @@ namespace DongAriGame.Gameplay
 
         private void BeginRoom()
         {
+            ClearEnemies();
+            bool shop = run.IsShopRoom;
+            phase = shop ? GamePhase.Shop : GamePhase.Playing;
+            playerController.SetInputEnabled(!shop);
+            playerCombat.SetInputEnabled(!shop);
+            if (shop)
+            {
+                currentWave = 0;
+                wavesInRoom = 0;
+                return;
+            }
             currentWave = 1;
             wavesInRoom = run.CurrentRoom == RunProgress.TotalRooms ? 1 : 1 + (run.CurrentRoom - 1) / 4;
             SpawnWave();
@@ -224,6 +235,7 @@ namespace DongAriGame.Gameplay
             if (phase == GamePhase.CharacterSelect) DrawCharacterSelect();
             else if (phase == GamePhase.Playing) DrawHud();
             else if (phase == GamePhase.ArtifactSelect) DrawArtifactSelect();
+            else if (phase == GamePhase.Shop) DrawShop();
             else DrawResult();
             GUI.matrix = previous;
         }
@@ -234,7 +246,7 @@ namespace DongAriGame.Gameplay
             GUI.Label(new Rect(36, 28, 320, 28), $"방 {run.CurrentRoom} / {RunProgress.TotalRooms}   웨이브 {currentWave}/{wavesInRoom}");
             GUI.Label(new Rect(36, 59, 320, 25), $"체력 {playerHealth.Current:0} / {playerHealth.Maximum:0}");
             GUI.Label(new Rect(36, 88, 320, 25), $"마나 {playerCombat.Mana.Current:0.0} / {playerCombat.Mana.Maximum:0} (+1/초)");
-            GUI.Label(new Rect(390, 18, 320, 28), $"경과 {FormatTime(elapsedTime)}   점수 {score:N0}");
+            GUI.Label(new Rect(390, 18, 320, 28), $"경과 {FormatTime(elapsedTime)}   점수 {score:N0}   골드 {run.Gold}");
             GUI.Label(new Rect(20, 665, 650, 30), $"이동: WASD/방향키    기본 공격: Space    고유 스킬: Q (마나 20)");
         }
 
@@ -254,6 +266,42 @@ namespace DongAriGame.Gameplay
             if (GUI.Button(new Rect(420, 270, 440, 60), ArtifactText(artifactChoices[0]))) SelectArtifact(artifactChoices[0]);
             if (GUI.Button(new Rect(420, 345, 440, 60), ArtifactText(artifactChoices[1]))) SelectArtifact(artifactChoices[1]);
             if (GUI.Button(new Rect(420, 420, 440, 60), ArtifactText(artifactChoices[2]))) SelectArtifact(artifactChoices[2]);
+        }
+
+        private void BuyPotion(bool healthPotion)
+        {
+            if (phase != GamePhase.Shop) return;
+            if (healthPotion)
+            {
+                if (playerHealth.IsDead || playerHealth.Current >= playerHealth.Maximum) return;
+                if (run.TrySpendGold(40)) playerHealth.Heal(playerHealth.Maximum * 0.5f);
+            }
+            else
+            {
+                if (playerCombat.Mana.Current >= playerCombat.Mana.Maximum) return;
+                if (run.TrySpendGold(50)) playerCombat.Mana.Fill();
+            }
+        }
+
+        private void LeaveShop()
+        {
+            if (phase != GamePhase.Shop) return;
+            run.CompleteCurrentRoom();
+            BeginRoom();
+        }
+
+        private void DrawShop()
+        {
+            GUI.Box(new Rect(365, 150, 550, 400), $"{run.CurrentRoom}번 방 · 상점");
+            GUI.Label(new Rect(420, 195, 440, 30), $"보유 골드: {run.Gold}");
+            GUI.Label(new Rect(420, 230, 440, 30), $"체력 {playerHealth.Current:0}/{playerHealth.Maximum:0}   마나 {playerCombat.Mana.Current:0}/{playerCombat.Mana.Maximum:0}");
+            bool previousEnabled = GUI.enabled;
+            GUI.enabled = previousEnabled && run.Gold >= 40 && playerHealth.Current < playerHealth.Maximum;
+            if (GUI.Button(new Rect(420, 280, 440, 60), "체력 물약 · 최대 체력의 50% 회복 · 40골드")) BuyPotion(true);
+            GUI.enabled = previousEnabled && run.Gold >= 50 && playerCombat.Mana.Current < playerCombat.Mana.Maximum;
+            if (GUI.Button(new Rect(420, 355, 440, 60), "마나 물약 · 전부 회복 · 50골드")) BuyPotion(false);
+            GUI.enabled = previousEnabled;
+            if (GUI.Button(new Rect(420, 455, 440, 60), "다음 방으로")) LeaveShop();
         }
 
         private void DrawResult()
