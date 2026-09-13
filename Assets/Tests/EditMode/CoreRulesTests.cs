@@ -6,6 +6,58 @@ namespace DongAriGame.Tests
     public sealed class CoreRulesTests
     {
         [Test]
+        public void ShopsAppearOnlyInRoomsFourAndNine()
+        {
+            var run = new RunProgress();
+            for (int room = 1; room <= 10; room++)
+            {
+                Assert.That(run.IsShopRoom, Is.EqualTo(room == 4 || room == 9));
+                run.CompleteCurrentRoom();
+            }
+            Assert.That(run.IsShopRoom, Is.False);
+        }
+
+        [Test]
+        public void ShopPurchasesRespectBalanceAndDoNotGrantRoomRewards()
+        {
+            var run = new RunProgress();
+            for (int i = 0; i < 3; i++) run.CompleteCurrentRoom();
+            Assert.That(run.Gold, Is.EqualTo(180));
+            Assert.That(run.TrySpendGold(181), Is.False);
+            Assert.That(run.Gold, Is.EqualTo(180));
+            Assert.That(run.TrySpendGold(180), Is.True);
+            Assert.That(run.Gold, Is.Zero);
+            run.CompleteCurrentRoom();
+            Assert.That(run.CurrentRoom, Is.EqualTo(5));
+            Assert.That(run.Gold, Is.Zero);
+        }
+
+        [Test]
+        public void GoldResetsAndCannotBeSpentOutsideShop()
+        {
+            var run = new RunProgress();
+            run.CompleteCurrentRoom();
+            Assert.That(run.TrySpendGold(1), Is.False);
+            Assert.That(run.Gold, Is.EqualTo(50));
+            Assert.Throws<System.ArgumentOutOfRangeException>(() => run.TrySpendGold(0));
+            Assert.Throws<System.ArgumentOutOfRangeException>(() => run.TrySpendGold(-1));
+            run.Reset();
+            Assert.That(run.Gold, Is.Zero);
+            Assert.That(run.CurrentRoom, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void CompletedRunDoesNotGrantAdditionalGold()
+        {
+            var run = new RunProgress();
+            for (int i = 0; i < 10; i++) run.CompleteCurrentRoom();
+            int finalGold = run.Gold;
+            run.CompleteCurrentRoom();
+            Assert.That(run.Gold, Is.EqualTo(finalGold));
+            Assert.That(run.CurrentRoom, Is.EqualTo(11));
+        }
+
+        [Test]
         public void ManaRecoversExactlyOnePerSecond()
         {
             var mana = new ManaPool(10f, 1f, 0f);
