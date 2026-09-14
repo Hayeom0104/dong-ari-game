@@ -17,7 +17,10 @@ namespace DongAriGame.Gameplay
         private PlayerCombat playerCombat;
         private Health playerHealth;
         private float elapsedTime;
-        private readonly AffinityType[] artifactChoices = new AffinityType[3];
+        private readonly ArtifactDefinition[] artifactChoices = new ArtifactDefinition[3];
+        private StatBlock currentStats;
+        private bool showArtifacts;
+        private string artifactInventory = string.Empty;
         private int score;
         private int currentWave;
         private int wavesInRoom;
@@ -46,6 +49,8 @@ namespace DongAriGame.Gameplay
 
         private void Update()
         {
+            if ((phase == GamePhase.Playing || phase == GamePhase.Shop) && Input.GetKeyDown(KeyCode.I))
+                showArtifacts = !showArtifacts;
             if (phase != GamePhase.Playing) return;
             elapsedTime += Time.deltaTime;
             if (Input.GetKeyDown(KeyCode.Q)) TryUseCharacterSkill();
@@ -57,6 +62,7 @@ namespace DongAriGame.Gameplay
             selectedClass = characterClass;
             run.Reset();
             affinities.Reset();
+            showArtifacts = false;
             elapsedTime = 0f;
             score = 0;
             transform.position = Vector3.zero;
@@ -83,6 +89,11 @@ namespace DongAriGame.Gameplay
         private void ApplyStats(bool restoreHealth)
         {
             StatBlock stats = BuildCurrentStats();
+            currentStats = stats;
+            var inventory = new System.Text.StringBuilder();
+            foreach (ArtifactDefinition item in ArtifactDefinition.All)
+                if (affinities.Count(item) > 0) inventory.AppendLine($"[{ArtifactDefinition.ColorText(item.Color)}] {item.Name} ×{affinities.Count(item)}");
+            artifactInventory = inventory.Length == 0 ? "아직 보유한 아티팩트가 없습니다." : inventory.ToString();
             if (restoreHealth)
                 playerHealth.Configure(stats.MaxHealth, CombatFaction.Player, stats.EvasionChance);
             else
@@ -179,18 +190,31 @@ namespace DongAriGame.Gameplay
                 return;
             }
 
-            artifactChoices[0] = AffinityType.Red;
-            artifactChoices[1] = AffinityType.Blue;
-            artifactChoices[2] = AffinityType.White;
+            RollArtifactChoices();
             phase = GamePhase.ArtifactSelect;
             playerController.SetInputEnabled(false);
             playerCombat.SetInputEnabled(false);
         }
 
-        private void SelectArtifact(AffinityType type)
+        private void RollArtifactChoices()
+        {
+            for (int i = 0; i < artifactChoices.Length; i++)
+            {
+                int seen = 0;
+                foreach (ArtifactDefinition item in ArtifactDefinition.All)
+                {
+                    if (item.Color != (AffinityType)i) continue;
+                    seen++;
+                    if (UnityEngine.Random.Range(0, seen) == 0) artifactChoices[i] = item;
+                }
+            }
+        }
+
+        private void SelectArtifact(ArtifactDefinition artifact)
         {
             if (phase != GamePhase.ArtifactSelect) return;
-            affinities.Add(type);
+            if (artifact == null || System.Array.IndexOf(artifactChoices, artifact) < 0) return;
+            affinities.AddArtifact(artifact);
             run.CompleteCurrentRoom();
             ApplyStats(false);
             phase = GamePhase.Playing;
@@ -237,6 +261,7 @@ namespace DongAriGame.Gameplay
             else if (phase == GamePhase.ArtifactSelect) DrawArtifactSelect();
             else if (phase == GamePhase.Shop) DrawShop();
             else DrawResult();
+            if (showArtifacts && (phase == GamePhase.Playing || phase == GamePhase.Shop)) DrawArtifactInventory();
             GUI.matrix = previous;
         }
 
@@ -247,6 +272,7 @@ namespace DongAriGame.Gameplay
             GUI.Label(new Rect(36, 59, 320, 25), $"체력 {playerHealth.Current:0} / {playerHealth.Maximum:0}");
             GUI.Label(new Rect(36, 88, 320, 25), $"마나 {playerCombat.Mana.Current:0.0} / {playerCombat.Mana.Maximum:0} (+1/초)");
             GUI.Label(new Rect(390, 18, 320, 28), $"경과 {FormatTime(elapsedTime)}   점수 {score:N0}   골드 {run.Gold}");
+            GUI.Label(new Rect(20, 145, 650, 28), $"색깔 강화   빨강 {affinities.Red} · 파랑 {affinities.Blue} · 흰색 {affinities.White}   [I] 보유 아티팩트");
             GUI.Label(new Rect(20, 665, 650, 30), $"이동: WASD/방향키    기본 공격: Space    고유 스킬: Q (마나 20)");
         }
 
@@ -261,11 +287,26 @@ namespace DongAriGame.Gameplay
 
         private void DrawArtifactSelect()
         {
-            GUI.Box(new Rect(365, 160, 550, 360), $"{run.CurrentRoom}번 방 클리어!");
-            GUI.Label(new Rect(470, 215, 360, 35), "아티팩트를 하나 선택하세요.");
-            if (GUI.Button(new Rect(420, 270, 440, 60), ArtifactText(artifactChoices[0]))) SelectArtifact(artifactChoices[0]);
-            if (GUI.Button(new Rect(420, 345, 440, 60), ArtifactText(artifactChoices[1]))) SelectArtifact(artifactChoices[1]);
-            if (GUI.Button(new Rect(420, 420, 440, 60), ArtifactText(artifactChoices[2]))) SelectArtifact(artifactChoices[2]);
+            GUI.Box(new Rect(310, 135, 660, 440), $"{run.CurrentRoom}번 방 클리어! · 아티팩트 하나 선택");
+            GUI.Label(new Rect(350, 175, 580, 30), "해당 색깔 +1과 고유 효과를 함께 획득 · 중복 획득 시 누적");
+            for (int i = 0; i < artifactChoices.Length; i++)
+            {
+                ArtifactDefinition item = artifactChoices[i];
+                Color previousColor = GUI.backgroundColor;
+                GUI.backgroundColor = item.Color == AffinityType.Red ? new Color(1f, 0.5f, 0.5f)
+                    : item.Color == AffinityType.Blue ? new Color(0.5f, 0.75f, 1f) : Color.white;
+                bool selected = GUI.Button(new Rect(350, 220 + i * 110, 580, 95), ArtifactText(item));
+                GUI.backgroundColor = previousColor;
+                if (selected) { SelectArtifact(item); break; }
+            }
+        }
+
+        private void DrawArtifactInventory()
+        {
+            GUI.Box(new Rect(925, 150, 345, 450), "색깔 / 아티팩트 · I로 닫기");
+            GUI.Label(new Rect(940, 185, 315, 30), $"빨강 {affinities.Red} / 파랑 {affinities.Blue} / 흰색 {affinities.White}");
+            GUI.Label(new Rect(940, 220, 315, 95), $"공격력 {currentStats.AttackPower:0.0} · 최대 체력 {currentStats.MaxHealth:0}\n공격속도 배율 {currentStats.AttackSpeed:0.00} · 이동속도 {currentStats.MoveSpeed:0.00}\n치명타 {currentStats.CriticalChance:P0} · 회피 {currentStats.EvasionChance:P0}");
+            GUI.Label(new Rect(940, 320, 315, 265), artifactInventory);
         }
 
         private void BuyPotion(bool healthPotion)
@@ -313,14 +354,9 @@ namespace DongAriGame.Gameplay
             if (GUI.Button(new Rect(490, 380, 300, 65), "캐릭터 선택으로")) phase = GamePhase.CharacterSelect;
         }
 
-        private static string ArtifactText(AffinityType type)
+        private string ArtifactText(ArtifactDefinition item)
         {
-            return type switch
-            {
-                AffinityType.Red => "붉은 핵\n공격력 +8% · 치명타 +2.5%",
-                AffinityType.Blue => "푸른 깃털\n공격속도 +6% · 이동속도 +4% · 회피 +2%",
-                _ => "백색 결정\n공격력 +2 · 최대 체력 +8"
-            };
+            return $"[{ArtifactDefinition.ColorText(item.Color)}] {item.Name} (보유 {affinities.Count(item)})\n색깔 +1: {ArtifactDefinition.ColorEffect(item.Color)}\n고유 효과: {item.BonusText}";
         }
 
         private static string FormatTime(float seconds)
