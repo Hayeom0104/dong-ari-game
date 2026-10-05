@@ -55,3 +55,9 @@
 
 검증: 색깔별 목록, 중복 누적, 혼합 색깔 계산 순서, 확률 상한과 초기화 EditMode 테스트 추가.
 Unity Editor가 없는 작업 환경에서는 실행 테스트와 실제 화면 검증을 수행하지 못했습니다.
+
+## CI
+
+`.github/workflows/unity-tests.yml` runs EditMode tests and a Linux build with GameCI.
+Add these repository secrets (Settings → Secrets and variables → Actions):
+`UNITY_LICENSE` (contents of a `.ulf`), `UNITY_EMAIL`, `UNITY_PASSWORD`.
