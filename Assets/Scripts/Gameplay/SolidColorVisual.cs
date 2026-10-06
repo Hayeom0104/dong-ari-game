@@ -10,9 +10,11 @@ namespace DongAriGame.Gameplay
 
         private void Awake()
         {
+            SpriteRenderer spriteRenderer = GetComponent<SpriteRenderer>();
+            // Existing scenes may keep this placeholder component after art is added.
+            if (spriteRenderer.sprite != null) return;
             runtimeSprite = Sprite.Create(Texture2D.whiteTexture, new Rect(0f, 0f, 1f, 1f),
                 new Vector2(0.5f, 0.5f), 1f);
-            SpriteRenderer spriteRenderer = GetComponent<SpriteRenderer>();
             spriteRenderer.sprite = runtimeSprite;
             spriteRenderer.color = color;
         }

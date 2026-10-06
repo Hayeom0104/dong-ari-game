@@ -41,6 +41,15 @@ namespace DongAriGame.Gameplay
 
         private void OnEnable() => playerHealth.Died += HandlePlayerDied;
 
+        private void Start() => ApplyCharacterVisual();
+
+        private void ApplyCharacterVisual()
+        {
+            var animation = GetComponent<SpriteWalkAnimator>();
+            if (animation == null) animation = gameObject.AddComponent<SpriteWalkAnimator>();
+            animation.Configure("Heroes", (int)selectedClass, Color.white);
+        }
+
         private void OnDisable()
         {
             playerHealth.Died -= HandlePlayerDied;
@@ -60,6 +69,7 @@ namespace DongAriGame.Gameplay
         {
             ClearEnemies();
             selectedClass = characterClass;
+            ApplyCharacterVisual();
             run.Reset();
             affinities.Reset();
             showArtifacts = false;
@@ -137,26 +147,34 @@ namespace DongAriGame.Gameplay
                 float angle = Mathf.PI * 2f * i / enemyCount;
                 Vector2 position = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * 5.3f;
                 bool elite = !bossRoom && currentWave == wavesInRoom && i == enemyCount - 1;
-                Health enemy = CreateEnemy(position, bossRoom, elite);
+                Health enemy = CreateEnemy(position, bossRoom, elite, MonsterDefinition.ForSpawn(run.CurrentRoom, currentWave, i));
                 livingEnemies.Add(enemy);
                 enemy.Died += HandleEnemyDied;
             }
         }
 
-        private Health CreateEnemy(Vector2 position, bool boss, bool elite)
+        private Health CreateEnemy(Vector2 position, bool boss, bool elite, MonsterDefinition species)
         {
-            var enemy = new GameObject(boss ? "Room Boss" : elite ? "Elite Enemy" : "Enemy");
+            var enemy = new GameObject(boss ? "고대 수정 수호자" : (elite ? "정예 " : "") + species.Name);
             enemy.transform.position = position;
             enemy.transform.localScale = boss ? Vector3.one * 1.8f : elite ? Vector3.one * 1.3f : Vector3.one;
             enemy.AddComponent<SpriteRenderer>();
-            var visual = enemy.AddComponent<SolidColorVisual>();
-            visual.SetColor(boss ? new Color(0.75f, 0.2f, 0.95f) : elite ? new Color(1f, 0.65f, 0.12f) : new Color(0.92f, 0.22f, 0.2f));
-            enemy.AddComponent<BoxCollider2D>();
+            Color tint = Color.white;
+            if (species.Variant) tint = species.SpriteRow == 0 ? new Color(0.65f, 1f, 0.45f)
+                : species.SpriteRow == 1 ? new Color(1f, 0.7f, 0.55f) : new Color(0.65f, 0.75f, 1f);
+            if (elite) tint *= new Color(1f, 0.8f, 0.65f);
+            if (boss) tint = new Color(0.85f, 0.6f, 1f);
+            enemy.AddComponent<SpriteWalkAnimator>().Configure("Monsters", boss ? 2 : species.SpriteRow, tint);
+            // Sprite bounds include capes and weapons; preserve the combat body's size.
+            var collider = enemy.AddComponent<BoxCollider2D>();
+            collider.size = Vector2.one;
+            collider.offset = Vector2.zero;
             var rigidbody = enemy.AddComponent<Rigidbody2D>();
             rigidbody.gravityScale = 0f;
             rigidbody.freezeRotation = true;
             Health enemyHealth = enemy.AddComponent<Health>();
             float hp = boss ? 200f + run.CurrentRoom * 50f : 30f + run.CurrentRoom * 10f;
+            if (!boss) hp *= species.HealthMultiplier;
             if (elite) hp *= 2f;
             enemyHealth.Configure(hp, CombatFaction.Enemy);
             var reward = enemy.AddComponent<EnemyReward>();
@@ -164,8 +182,10 @@ namespace DongAriGame.Gameplay
             enemyScores[enemyHealth] = reward.ScoreValue;
             var chaser = enemy.AddComponent<EnemyChaser>();
             float damage = boss ? 20f + run.CurrentRoom * 5f : 5f + run.CurrentRoom * 2f;
-            chaser.Configure(transform, playerHealth, boss ? 1.4f : elite ? 2.2f : 1.8f,
-                elite ? damage * 1.5f : damage, boss ? 1.1f : 1.35f);
+            if (!boss) damage *= species.DamageMultiplier;
+            chaser.Configure(transform, playerHealth, boss ? 1.4f : species.Speed * (elite ? 1.15f : 1f),
+                elite ? damage * 1.5f : damage, boss ? 1.5f : species.AttackInterval,
+                boss ? MonsterMovement.Dash : species.Movement);
             return enemyHealth;
         }
 

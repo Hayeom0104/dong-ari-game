@@ -5,6 +5,73 @@ namespace DongAriGame.Tests
 {
     public sealed class CoreRulesTests
     {
+        [TestCase("Heroes", 0)]
+        [TestCase("Heroes", 1)]
+        [TestCase("Heroes", 2)]
+        [TestCase("Monsters", 0)]
+        [TestCase("Monsters", 1)]
+        [TestCase("Monsters", 2)]
+        public void ActorVisualUsesAtlasAndSurvivesPlaceholderInitialization(string atlas, int row)
+        {
+            var actor = new UnityEngine.GameObject("Animation test");
+            try
+            {
+                var renderer = actor.AddComponent<UnityEngine.SpriteRenderer>();
+                var animator = actor.AddComponent<DongAriGame.Gameplay.SpriteWalkAnimator>();
+                animator.Configure(atlas, row, UnityEngine.Color.white);
+                var sprite = renderer.sprite;
+                Assert.That(sprite, Is.Not.Null);
+                Assert.That(sprite.texture, Is.SameAs(UnityEngine.Resources.Load<UnityEngine.Texture2D>("Art/" + atlas)));
+                Assert.That(sprite.name, Is.EqualTo(atlas + ":" + row + ":0"));
+                actor.AddComponent<DongAriGame.Gameplay.SolidColorVisual>();
+                Assert.That(renderer.sprite, Is.SameAs(sprite));
+                animator.Configure(atlas, (row + 1) % 3, UnityEngine.Color.white);
+                Assert.That(renderer.sprite.name, Is.EqualTo(atlas + ":" + ((row + 1) % 3) + ":0"));
+            }
+            finally { UnityEngine.Object.DestroyImmediate(actor); }
+        }
+
+        [Test]
+        public void SpawnSelectionRespectsUnlockRoomsAndUsesAllSpecies()
+        {
+            var seen = new System.Collections.Generic.HashSet<MonsterDefinition>();
+            for (int room = 1; room <= 8; room++)
+            {
+                if (room == 4) continue;
+                for (int wave = 1; wave <= 2; wave++)
+                    for (int slot = 0; slot < 6; slot++)
+                    {
+                        var monster = MonsterDefinition.ForSpawn(room, wave, slot);
+                        Assert.That(monster.FirstRoom, Is.LessThanOrEqualTo(room));
+                        Assert.That(monster.SpriteRow, Is.InRange(0, 2));
+                        seen.Add(monster);
+                    }
+            }
+            Assert.That(seen.Count, Is.EqualTo(6));
+        }
+
+        [Test]
+        public void MonsterSpawnRejectsInvalidRooms()
+        {
+            Assert.Throws<System.ArgumentOutOfRangeException>(() => MonsterDefinition.ForSpawn(0, 1, 0));
+            Assert.Throws<System.ArgumentOutOfRangeException>(() => MonsterDefinition.ForSpawn(11, 1, 0));
+        }
+
+        [Test]
+        public void AnimationAssetsLoadWithOriginalDimensions()
+        {
+            var heroes = UnityEngine.Resources.Load<UnityEngine.Texture2D>("Art/Heroes");
+            var monsters = UnityEngine.Resources.Load<UnityEngine.Texture2D>("Art/Monsters");
+            Assert.That(heroes, Is.Not.Null);
+            Assert.That(monsters, Is.Not.Null);
+            Assert.That(heroes.width, Is.EqualTo(1774));
+            Assert.That(heroes.height, Is.EqualTo(887));
+            Assert.That(monsters.width, Is.EqualTo(1983));
+            Assert.That(monsters.height, Is.EqualTo(793));
+            Assert.That(UnityEngine.Resources.Load<UnityEngine.TextAsset>("Art/HeroesFrames"), Is.Not.Null);
+            Assert.That(UnityEngine.Resources.Load<UnityEngine.TextAsset>("Art/MonstersFrames"), Is.Not.Null);
+        }
+
         [Test]
         public void ArtifactCatalogHasThreeUniqueItemsPerColor()
         {
